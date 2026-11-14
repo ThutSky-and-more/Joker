@@ -44,7 +44,17 @@ const getClient = () => {
 };
 const query = async (result) => {
   const { data, error } = await result;
-  if (error) { console.error('JOKER DB error:',error.code,error.message); throw new ApiError('Die Datenbankanfrage ist fehlgeschlagen.',500); }
+  if (error) {
+    // Nur technische Fehlercodes protokollieren. Keine Schlüssel oder personenbezogenen Daten.
+    console.error('JOKER DB error:', {code:error.code,status:error.status, message:error.message});
+    if (error.status === 401 || /invalid api key|invalid jwt|invalid authentication|jwt expired|no api key/i.test(error.message || '')) {
+      throw new ApiError('Die Datenbank-Zugangsdaten sind ungültig. Bitte den Schlüssel des JOKER-Projekts prüfen. (DB-AUTH)',503);
+    }
+    if (error.status === 403 || error.code === '42501') {
+      throw new ApiError('Die Datenbank verweigert den Zugriff. Bitte die Berechtigungen prüfen. (DB-ACCESS)',503);
+    }
+    throw new ApiError('Die Datenbankanfrage ist fehlgeschlagen. Technische Details stehen in den Netlify-Functions-Logs. (DB-QUERY)',500);
+  }
   return data;
 };
 const todayZurich = () => {
