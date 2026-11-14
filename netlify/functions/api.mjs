@@ -95,21 +95,22 @@ const dashboard=async(db,u)=>{
     query(db.from('gallery_photos').select('id,file_path,caption,created_at').order('created_at',{ascending:false}).limit(80)),
     query(db.from('children').select('*').eq('parent_id',u.id).order('name')),
   ]);
+  const manualChildren=isAdmin?await query(db.from('children').select('id,name,age,contact_name,contact_phone,contact_email,photo_consent').is('parent_id',null).order('name')):[];
   let registrations=[];
   if(isAdmin){
     // Leiter sehen ausschliesslich die Daten von Kindern mit einer tatsächlichen Termin-Anmeldung.
     const regs=await query(db.from('registrations').select('id,event_id,child_id,created_at').order('created_at',{ascending:true}));
     const childIds=[...new Set(regs.map(r=>r.child_id))];
-    const relatedChildren=childIds.length?await query(db.from('children').select('id,name,age,parent_id').in('id',childIds)):[];
-    const parents=[...new Set(relatedChildren.map(c=>c.parent_id))];
+    const relatedChildren=childIds.length?await query(db.from('children').select('id,name,age,parent_id,contact_name,contact_phone,contact_email').in('id',childIds)):[];
+    const parents=[...new Set(relatedChildren.map(c=>c.parent_id).filter(Boolean))];
     const relatedProfiles=parents.length?await query(db.from('profiles').select('id,email,full_name,phone,alternate_contact_name,alternate_contact_phone').in('id',parents)):[];
     const cMap=new Map(relatedChildren.map(c=>[c.id,c]));const pMap=new Map(relatedProfiles.map(p=>[p.id,p]));
-    registrations=regs.map(r=>({...r,child:cMap.has(r.child_id)?{...cMap.get(r.child_id),parent:pMap.get(cMap.get(r.child_id).parent_id)||null}:null}));
+    registrations=regs.map(r=>({...r,child:cMap.has(r.child_id)?{...cMap.get(r.child_id),parent:pMap.get(cMap.get(r.child_id).parent_id)||(cMap.get(r.child_id).parent_id?null:{full_name:cMap.get(r.child_id).contact_name,phone:cMap.get(r.child_id).contact_phone,email:cMap.get(r.child_id).contact_email})}:null}));
   }else if(children.length){
     const visibleEventIds=events.map(e=>e.id);
     registrations=visibleEventIds.length?await query(db.from('registrations').select('id,event_id,child_id,created_at').in('child_id',children.map(c=>c.id)).in('event_id',visibleEventIds)):[];
   }
-  return {user:{id:u.id,email:u.email,roles:isAdmin?['admin']:[]},profile:{...profile,role:isAdmin?'admin':'parent'}, events,children,registrations,gallery:photos.map(p=>({...p,url:db.storage.from('joker-gallery').getPublicUrl(p.file_path).data.publicUrl}))};
+  return {user:{id:u.id,email:u.email,roles:isAdmin?['admin']:[]},profile:{...profile,role:isAdmin?'admin':'parent'}, events,children,manualChildren,registrations,gallery:photos.map(p=>({...p,url:db.storage.from('joker-gallery').getPublicUrl(p.file_path).data.publicUrl}))};
 };
 const action=async(db,u,body)=>{
   assert(u,'Bitte zuerst anmelden.',401);
@@ -179,6 +180,36 @@ const action=async(db,u,body)=>{
     }).select('id').single());
     if(eventId) await query(db.from('registrations').insert({event_id:eventId,child_id:child.id}));
     return {ok:true,child_id:child.id};
+  }
+  if(operation==='manual.child.save'){
+    const age=Number(body.age);
+    assert(Number.isInteger(age)&&age>=4&&age<=18,'Alter muss zwischen 4 und 18 liegen.');
+    const email=String(body.contact_email||'').trim();
+    assert(!email || (email.length<=254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)),'Ungültige E-Mail-Adresse.');
+    const payload={name:requireField(body.name,'Kindesname',2,120), age,
+      contact_name:requireField(body.contact_name,'Kontaktperson',2,120),
+      contact_phone:requireField(body.contact_phone,'Telefonnummer',6,40),
+      contact_email:email,photo_consent:false};
+    if(body.id){
+      await query(db.from('children').update(payload).eq('id',uid(body.id)).is('parent_id',null).select('id').single());
+    }else await query(db.from('children').insert({...payload,parent_id:null}));
+    return {ok:true};
+  }
+  if(operation==='manual.child.delete'){
+    await query(db.from('children').delete().eq('id',uid(body.id)).is('parent_id',null).select('id').single());
+    return {ok:true};
+  }
+  if(operation==='manual.registration.set'){
+    const childId=uid(body.child_id),eventId=uid(body.event_id);
+    assert(typeof body.registered==='boolean','Ungültiger Anmeldestatus.');
+    await query(db.from('children').select('id').eq('id',childId).is('parent_id',null).single());
+    await query(db.from('events').select('id').eq('id',eventId).single());
+    if(body.registered){
+      await query(db.from('registrations').upsert({child_id:childId,event_id:eventId},{onConflict:'event_id,child_id',ignoreDuplicates:true}));
+    }else{
+      await query(db.from('registrations').delete().eq('child_id',childId).eq('event_id',eventId));
+    }
+    return {ok:true};
   }
   if(operation==='event.save'){
     assert(validDate(body.event_date),'Ungültiges Datum.');
