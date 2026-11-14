@@ -6,3 +6,14 @@
 
 /* Ohne Bilddateien – Kontrast und sichtbare Tastaturfokussierung. */
 :where(button,a,input,select,textarea):focus-visible{outline:3px solid #d8a341;outline-offset:3px}
+
+
+/* Galerie: interaktive Grossansicht */
+.gallery-zoom{appearance:none;border:0;cursor:zoom-in;display:block;text-align:left;background:transparent;font:inherit;color:inherit;padding:0;width:100%;overflow:hidden;border-radius:16px}
+.gallery-zoom:focus-visible{outline:3px solid #d8a341;outline-offset:3px}
+.gallery-thumb.gallery-zoom{position:relative}
+.modal.modal-photo{max-width:min(1050px,96vw);padding:18px 18px 22px}
+.modal-photo .modal-close{position:relative;z-index:2;float:right}
+.photo-view{clear:both;display:flex;flex-direction:column;align-items:center;gap:12px}
+.photo-view img{width:auto;max-width:100%;max-height:76vh;height:auto;object-fit:contain;border-radius:12px}
+.photo-view p{margin:0;text-align:center;color:#365e55;font-weight:700}
