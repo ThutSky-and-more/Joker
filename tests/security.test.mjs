@@ -180,3 +180,36 @@ test('Überlange Mitbringliste wird abgewiesen', async () => {
   const res=await handler(req({action:'event.save',title:'JOKER Waldtag',description:'Waldnachmittag',bring_wear:'x'.repeat(2001),event_date:'2099-03-03',start_time:'14:00',location:'JuHu'}));
   assert.equal(res.status,400);
 });
+
+test('Nur Leiter dürfen Anwesenheit speichern',async()=>{
+ setupDb();globalThis.__testUser={id:'p1',email:'p1@example.ch',roles:[]};
+ const result=await handler(req({action:'attendance.set',registration_id:'bbbbbbb1-bbbb-4bbb-8bbb-bbbbbbbbbbbb',event_id:'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaaa',present:true}));
+ assert.equal(result.status,403);
+});
+
+test('Leiter können Anwesenheit markieren und wieder zurücksetzen',async()=>{
+ const tables=setupDb();globalThis.__testUser={id:'admin1',email:'admin@example.ch',roles:['admin']};
+ const id='bbbbbbb1-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+ const eventId='aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+ const present=await handler(req({action:'attendance.set',registration_id:id,event_id:eventId,present:true}));
+ assert.equal(present.status,200);
+ assert.equal(typeof tables.registrations[0].checked_in_at,'string');
+ const absent=await handler(req({action:'attendance.set',registration_id:id,event_id:eventId,present:false}));
+ assert.equal(absent.status,200);
+ assert.equal(tables.registrations[0].checked_in_at,null);
+});
+
+test('Leiter können keine Anwesenheit eines anderen Termins unter falscher Event-ID verändern',async()=>{
+ const tables=setupDb();globalThis.__testUser={id:'admin1',email:'admin@example.ch',roles:['admin']};
+ const result=await handler(req({action:'attendance.set',registration_id:'bbbbbbb1-bbbb-4bbb-8bbb-bbbbbbbbbbbb',event_id:'aaaaaaa2-aaaa-4aaa-8aaa-aaaaaaaaaaaa',present:true}));
+ assert.notEqual(result.status,200);
+ assert.equal(tables.registrations[0].checked_in_at,undefined);
+});
+
+test('Eltern sehen keine Anwesenheitsstatus im Dashboard',async()=>{
+ setupDb();globalThis.__testUser={id:'p1',email:'p1@example.ch',roles:[]};
+ const result=await handler(new Request('https://joker-test.netlify.app/api?view=dashboard'));
+ assert.equal(result.status,200);
+ const data=await result.json();
+ assert.equal(Object.hasOwn(data.registrations[0],'checked_in_at'),false);
+});
