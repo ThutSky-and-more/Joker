@@ -10,6 +10,9 @@ Website und Portal für JOKER, das Kinderfreizeitangebot der Evangelischen Kirch
 - Anmeldung bis zum Abend vor dem Termin (Schweizer Datum), oder bis zum von der Leitung gewählten Anmeldeschluss.
 - Leiter mit Tag `admin` erstellen und bearbeiten Termine inkl. Titel, Ort, Datum, Uhrzeiten, Beschreibung, Freigabe und Anmeldeschluss.
 - Leiter sehen pro Termin die angemeldeten Kinder mit Kontaktpersonen und können Galeriebilder hochladen/löschen.
+- Leiter können im Bereich **Kinder erfassen** Kinder zu bereits registrierten Elternkonten anhand der E-Mail-Adresse hinzufügen und optional direkt für einen Termin anmelden.
+- Vergangene Termine und zugehörige Anmeldungen werden Eltern nicht mehr angezeigt. Leiter finden alle früheren Termine und Teilnehmerlisten im Bereich **Verlauf**; Termine können dort auch endgültig gelöscht werden.
+- Galerie-Bilder lassen sich in der öffentlichen Galerie sowie im Leiterbereich anklicken und in Grossansicht öffnen.
 - Getrennte serverseitige Rechteprüfung. Niemand erhält den `admin`-Tag durch die Registrierung.
 
 ## Architektur
@@ -77,8 +80,8 @@ Die zwei in der lokalen Vorschau vorkonfigurierten Termine dienen **ausschliessl
 - Netlify Identity Kosten: https://docs.netlify.com/manage/security/secure-access-to-sites/identity/plans-and-pricing/
 - Kirchgemeinde: https://www.evang-kemmental.ch/joker
 
-## Fertigstellung dieser ersten Version
+## Betrieb und Erweiterungen
 
-Die Oberflächen und die Netlify-Functions-API sind im Quellcode enthalten. Lokale Sicherheitstests prüfen Rollenrechte und Datenzugriff. **Ein echter Login mit Eltern und Leitung sowie eine reale Anmeldung sind erst nach GitHub/Netlify-Veröffentlichung und Einrichtung der Supabase-Datenbank möglich.** Vorher keine echten Personendaten eingeben.
+Die Website ist mit Netlify Identity und dem separaten Supabase-Projekt verbunden. Änderungen auf dem GitHub-Branch `main` müssen per Netlify-Deploy veröffentlicht werden. Die neuen Leiterfunktionen und der Verlauf müssen auf dem produktiven Netlify-Deployment mit Testkonten geprüft werden.
 
 Eine separat beigelegte **HTML-Vorschau** zeigt die Gestaltung und erlaubt das Durchspielen der Abläufe mit Fantasiedaten; die Vorschau speichert nichts dauerhaft.
