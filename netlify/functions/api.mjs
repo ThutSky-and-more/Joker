@@ -82,7 +82,7 @@ const getProfile = async (db, u) => {
 };
 const publicData=async(db)=>{
   const [events,photos]=await Promise.all([
-    query(db.from('events').select('*').eq('is_published',true).order('event_date')),
+    query(db.from('events').select('*').eq('is_published',true).gte('event_date',todayZurich()).order('event_date')),
     query(db.from('gallery_photos').select('id,file_path,caption,created_at').order('created_at',{ascending:false}).limit(40))
   ]);
   return {events, gallery:photos.map(p=>({...p,url:db.storage.from('joker-gallery').getPublicUrl(p.file_path).data.publicUrl}))};
@@ -91,7 +91,7 @@ const dashboard=async(db,u)=>{
   const isAdmin=adminRole(u);
   const profile=await getProfile(db,u);
   const [events,photos,children]=await Promise.all([
-    query(isAdmin?db.from('events').select('*').order('event_date'):db.from('events').select('*').eq('is_published',true).order('event_date')),
+    query(isAdmin?db.from('events').select('*').order('event_date'):db.from('events').select('*').eq('is_published',true).gte('event_date',todayZurich()).order('event_date')),
     query(db.from('gallery_photos').select('id,file_path,caption,created_at').order('created_at',{ascending:false}).limit(80)),
     query(db.from('children').select('*').eq('parent_id',u.id).order('name')),
   ]);
@@ -158,8 +158,27 @@ const action=async(db,u,body)=>{
     if(remove.length) await query(db.from('registrations').delete().in('id',remove));
     return {ok:true};
   }
-  // Ab hier sind ausschliesslich Identitäten mit dem serverseitig geprüften admin-Tag erlaubt.
+  // Leiteraktionen werden serverseitig anhand der Identity-Rolle autorisiert.
   assert(isAdmin,'Für diese Funktion brauchst du den Netlify-Identity-Tag admin.',403);
+  if(operation==='leader.child.add'){
+    const email=requireField(body.parent_email,'E-Mail der Eltern',3,254).toLowerCase();
+    assert(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email),'Ungültige E-Mail-Adresse.');
+    const age=Number(body.age);
+    assert(Number.isInteger(age) && age>=4 && age<=18,'Alter muss zwischen 4 und 18 liegen.');
+    const name=requireField(body.name,'Kindesname',2,120);
+    const parent=await query(db.from('profiles').select('id,email').ilike('email',email).maybeSingle());
+    assert(parent,'Kein registriertes Elternkonto mit dieser E-Mail gefunden. Das Elternteil muss zuerst ein Konto erstellen.',404);
+    const eventId=body.event_id?uid(body.event_id):null;
+    if(eventId){
+      const event=await query(db.from('events').select('id').eq('id',eventId).maybeSingle());
+      assert(event,'Der gewählte Termin wurde nicht gefunden.',404);
+    }
+    const child=await query(db.from('children').insert({
+      parent_id:parent.id,name,age,photo_consent:body.photo_consent===true
+    }).select('id').single());
+    if(eventId) await query(db.from('registrations').insert({event_id:eventId,child_id:child.id}));
+    return {ok:true,child_id:child.id};
+  }
   if(operation==='event.save'){
     assert(validDate(body.event_date),'Ungültiges Datum.');
     assert(timePattern.test(String(body.start_time||'').slice(0,5)),'Ungültige Startzeit.');
