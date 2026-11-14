@@ -101,7 +101,7 @@ const dashboard=async(db,u)=>{
     // Leiter sehen ausschliesslich die Daten von Kindern mit einer tatsächlichen Termin-Anmeldung.
     const regs=await query(db.from('registrations').select('id,event_id,child_id,created_at').order('created_at',{ascending:true}));
     const childIds=[...new Set(regs.map(r=>r.child_id))];
-    const relatedChildren=childIds.length?await query(db.from('children').select('id,name,age,parent_id,contact_name,contact_phone,contact_email').in('id',childIds)):[];
+    const relatedChildren=childIds.length?await query(db.from('children').select('id,name,age,parent_id,contact_name,contact_phone,contact_email,photo_consent').in('id',childIds)):[];
     const parents=[...new Set(relatedChildren.map(c=>c.parent_id).filter(Boolean))];
     const relatedProfiles=parents.length?await query(db.from('profiles').select('id,email,full_name,phone,alternate_contact_name,alternate_contact_phone').in('id',parents)):[];
     const cMap=new Map(relatedChildren.map(c=>[c.id,c]));const pMap=new Map(relatedProfiles.map(p=>[p.id,p]));
@@ -189,7 +189,7 @@ const action=async(db,u,body)=>{
     const payload={name:requireField(body.name,'Kindesname',2,120), age,
       contact_name:requireField(body.contact_name,'Kontaktperson',2,120),
       contact_phone:requireField(body.contact_phone,'Telefonnummer',6,40),
-      contact_email:email,photo_consent:false};
+      contact_email:email,photo_consent:body.photo_consent===true};
     if(body.id){
       await query(db.from('children').update(payload).eq('id',uid(body.id)).is('parent_id',null).select('id').single());
     }else await query(db.from('children').insert({...payload,parent_id:null}));
@@ -218,8 +218,10 @@ const action=async(db,u,body)=>{
     assert(!end||timePattern.test(end),'Ungültige Endzeit.');
     assert(!end||end>String(body.start_time).slice(0,5),'Das Ende muss nach Beginn liegen.');
     assert(!body.registration_deadline || (validDate(body.registration_deadline)&&body.registration_deadline<=body.event_date),'Ungültiger Anmeldeschluss.');
+    assert(String(body.bring_wear||'').trim().length<=2000,'Kleidung und Mitnehmen darf höchstens 2000 Zeichen umfassen.');
     const payload={
       title:requireField(body.title,'Titel',2,160),description:requireField(body.description,'Beschreibung',2,3000),
+      bring_wear:String(body.bring_wear||'').trim(),
       event_date:body.event_date,start_time:String(body.start_time).slice(0,5),end_time:end,
       location:requireField(body.location||'JuHu Hugelshofen','Ort',2,150),
       registration_open:body.registration_open===true,
