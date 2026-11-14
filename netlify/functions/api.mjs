@@ -106,7 +106,8 @@ const dashboard=async(db,u)=>{
     const cMap=new Map(relatedChildren.map(c=>[c.id,c]));const pMap=new Map(relatedProfiles.map(p=>[p.id,p]));
     registrations=regs.map(r=>({...r,child:cMap.has(r.child_id)?{...cMap.get(r.child_id),parent:pMap.get(cMap.get(r.child_id).parent_id)||null}:null}));
   }else if(children.length){
-    registrations=await query(db.from('registrations').select('id,event_id,child_id,created_at').in('child_id',children.map(c=>c.id)));
+    const visibleEventIds=events.map(e=>e.id);
+    registrations=visibleEventIds.length?await query(db.from('registrations').select('id,event_id,child_id,created_at').in('child_id',children.map(c=>c.id)).in('event_id',visibleEventIds)):[];
   }
   return {user:{id:u.id,email:u.email,roles:isAdmin?['admin']:[]},profile:{...profile,role:isAdmin?'admin':'parent'}, events,children,registrations,gallery:photos.map(p=>({...p,url:db.storage.from('joker-gallery').getPublicUrl(p.file_path).data.publicUrl}))};
 };
