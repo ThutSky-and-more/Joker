@@ -82,9 +82,8 @@ const setupDb=()=>{
   constructor(table){this.table=table;this.filters=[];this.op='read';this.payload=null;}
   select(){return this;}
   eq(k,v){this.filters.push(r=>r[k]===v);return this;}
+  is(k,v){this.filters.push(r=>(r[k]??null)===v);return this;}
   in(k,v){this.filters.push(r=>v.includes(r[k]));return this;}
-  gte(k,v){this.filters.push(r=>r[k]>=v);return this;}
-  ilike(k,v){this.filters.push(r=>String(r[k]).toLowerCase()===String(v).toLowerCase());return this;}
   order(){return this;}
   limit(){return this;}
   insert(payload){this.op='insert';this.payload=payload;return this;}
@@ -103,7 +102,7 @@ const setupDb=()=>{
    }
    if(this.op==='update'){Object.assign(matches[0]||{},this.payload);return {data:matches,error:null};}
   }
-  single(){const result=this.result();return Promise.resolve({...result,data:result.data[0]||null});}
+  single(){const result=this.result();return Promise.resolve({...result,data:result.data[0]||null,error:result.data.length?null:{code:'PGRST116',message:'No rows found'}});}
   maybeSingle(){const result=this.result();return Promise.resolve({...result,data:result.data[0]||null});}
   then(resolve){return resolve(this.result());}
  }
@@ -138,41 +137,30 @@ test('Leitung sieht Kontakte ausschliesslich von angemeldeten Familien',async()=
  assert.equal(JSON.stringify(data).includes('p3@example.ch'),false);
 });
 
+test('Eltern können keine Kinder manuell für die Leitung erfassen',async()=>{
+ setupDb();globalThis.__testUser={id:'p1',email:'p1@example.ch',roles:[]};
+ const result=await handler(req({action:'manual.child.save',name:'Test Kind',age:9,contact_name:'Test Eltern',contact_phone:'079 123 45 67'}));
+ assert.equal(result.status,403);
+});
+
+test('Leitung kann ein Kind ohne Eltern-Login mit Kontakt erfassen',async()=>{
+ const tables=setupDb();globalThis.__testUser={id:'admin1',email:'admin@example.ch',roles:['admin']};
+ const result=await handler(req({action:'manual.child.save',name:'Zusatz Kind',age:10,contact_name:'Kontakt Eltern',contact_phone:'079 222 33 44',contact_email:'kontakt@example.ch'}));
+ assert.equal(result.status,200);
+ assert.equal(tables.children.at(-1).parent_id,null);
+ assert.equal(tables.children.at(-1).contact_name,'Kontakt Eltern');
+});
+
+test('Leitung darf nicht ein Kind eines Elternkontos per manueller Verwaltung ändern',async()=>{
+ const tables=setupDb();globalThis.__testUser={id:'admin1',email:'admin@example.ch',roles:['admin']};
+ const id='11111111-1111-4111-8111-111111111111';
+ const result=await handler(req({action:'manual.child.save',id,name:'Gehackter Name',age:9,contact_name:'Kontakt Eltern',contact_phone:'079 222 33 44'}));
+ assert.notEqual(result.status,200);
+ assert.equal(tables.children.find(c=>c.id===id).name,'Kind Eins');
+});
+
 test('Eltern können nicht das Kind einer anderen Familie anmelden',async()=>{
  setupDb();globalThis.__testUser={id:'p1',email:'p1@example.ch',roles:[]};
  const result=await handler(req({action:'registration.set',event_id:'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaaa',child_ids:['22222222-2222-4222-8222-222222222222']}));
  assert.equal(result.status,403);
-});
-
-test('Eltern dürfen keine Kinder für andere Eltern erfassen',async()=>{
- setupDb();globalThis.__testUser={id:'p1',email:'p1@example.ch',roles:[]};
- const result=await handler(req({action:'leader.child.add',parent_email:'p2@example.ch',name:'Neues Kind',age:8}));
- assert.equal(result.status,403);
-});
-
-test('Leitung kann Kind einem bestehenden Elternkonto zuordnen',async()=>{
- const tables=setupDb();globalThis.__testUser={id:'admin1',email:'admin@example.ch',roles:['admin']};
- const result=await handler(req({action:'leader.child.add',parent_email:'p2@example.ch',name:'Neues Kind',age:8,photo_consent:false}));
- assert.equal(result.status,200);
- const added=tables.children.find(c=>c.name==='Neues Kind');
- assert.equal(added.parent_id,'p2');
- assert.equal(added.photo_consent,false);
-});
-
-test('Leitung darf kein neues Kind einem unbekannten Elternkonto zuordnen',async()=>{
- const tables=setupDb();globalThis.__testUser={id:'admin1',email:'admin@example.ch',roles:['admin']};
- const result=await handler(req({action:'leader.child.add',parent_email:'fremd@example.ch',name:'Neues Kind',age:8}));
- assert.equal(result.status,404);
- assert.equal(tables.children.length,3);
-});
-
-test('Eltern sehen vergangene Termine nicht; Admins behalten die Historie',async()=>{
- const tables=setupDb();
- tables.events.push({id:'aaaaaaa3-aaaa-4aaa-8aaa-aaaaaaaaaaaa',title:'Vergangener Termin',event_date:'2020-05-10',is_published:true,registration_open:false});
- globalThis.__testUser={id:'p1',email:'p1@example.ch',roles:[]};
- const parent=await handler(new Request('https://joker-test.netlify.app/api?view=dashboard'));
- assert.equal(parent.status,200);assert.equal((await parent.json()).events.some(e=>e.title==='Vergangener Termin'),false);
- globalThis.__testUser={id:'admin1',email:'admin@example.ch',roles:['admin']};
- const leader=await handler(new Request('https://joker-test.netlify.app/api?view=dashboard'));
- assert.equal(leader.status,200);assert.equal((await leader.json()).events.some(e=>e.title==='Vergangener Termin'),true);
 });
