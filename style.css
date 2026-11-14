@@ -36,3 +36,24 @@
 .attendance-table td{vertical-align:middle}
 .attendance-table tbody tr:has(input:checked){background-color:rgba(45,122,78,.075)}
 @media(max-width:600px){.attendance-toolbar>.btn{width:100%;text-align:center;justify-content:center}}
+
+
+/* Galerie-Grossansicht, für Tastatur und Touch-Geräte */
+.gallery-open{display:block;width:100%;padding:0;text-align:left;color:inherit;font:inherit;cursor:zoom-in;transition:transform .2s ease,box-shadow .2s ease}
+.gallery-open:hover,.gallery-open:focus-visible{transform:translateY(-3px);box-shadow:0 12px 30px #0b30252b}
+.gallery-caption{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 18px;font-weight:800}
+.leader-gallery-open{display:block;width:100%;padding:0;border:0;border-radius:13px;overflow:hidden;background:#edf3ef;cursor:zoom-in}
+.leader-gallery-open img{width:100%;height:150px;object-fit:cover}
+.leader-gallery-open:focus-visible,.gallery-open:focus-visible{outline:3px solid #d5a541;outline-offset:3px}
+.lightbox-backdrop{position:fixed;inset:0;z-index:300;background:rgba(4,17,17,.95);display:flex;align-items:center;justify-content:center;padding:22px;overscroll-behavior:contain}
+.lightbox-dialog{position:relative;width:min(1200px,100%);height:min(90dvh,850px);display:flex;align-items:center;justify-content:center;gap:14px}
+.lightbox-figure{margin:0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;max-width:calc(100% - 110px);max-height:100%;gap:15px}
+.lightbox-figure img{display:block;max-width:100%;max-height:calc(90dvh - 105px);width:auto;height:auto;object-fit:contain;border-radius:9px;box-shadow:0 10px 50px #0006}
+.lightbox-figure figcaption{width:100%;color:#fff;text-align:center;line-height:1.45;font-weight:600}
+.lightbox-figure figcaption span{display:block;margin-top:5px;font-size:.78rem;color:#b9d0c5}
+.lightbox-nav,.lightbox-close{flex-shrink:0;background:#fff2;color:#fff;border:1px solid #ffffff5c;border-radius:100px;display:grid;place-items:center;cursor:pointer}
+.lightbox-nav{width:45px;height:45px;font-size:2.1rem}
+.lightbox-close{position:absolute;right:0;top:0;width:42px;height:42px;font-size:1.8rem;z-index:1}
+.lightbox-nav:hover,.lightbox-close:hover{background:#fff4}
+.lightbox-nav:focus-visible,.lightbox-close:focus-visible{outline:3px solid #ebc76e;outline-offset:3px}
+@media(max-width:600px){.lightbox-backdrop{padding:12px}.lightbox-dialog{width:100%;height:96dvh;gap:5px}.lightbox-figure{max-width:calc(100% - 76px)}.lightbox-figure img{max-height:calc(90dvh - 110px)}.lightbox-nav{width:34px;height:40px;font-size:1.75rem}.lightbox-close{top:8px;right:8px}}
