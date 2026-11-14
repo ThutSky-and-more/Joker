@@ -85,3 +85,15 @@ Die zwei in der lokalen Vorschau vorkonfigurierten Termine dienen **ausschliessl
 Die Website ist mit Netlify Identity und dem separaten Supabase-Projekt verbunden. Änderungen auf dem GitHub-Branch `main` müssen per Netlify-Deploy veröffentlicht werden. Die neuen Leiterfunktionen und der Verlauf müssen auf dem produktiven Netlify-Deployment mit Testkonten geprüft werden.
 
 Eine separat beigelegte **HTML-Vorschau** zeigt die Gestaltung und erlaubt das Durchspielen der Abläufe mit Fantasiedaten; die Vorschau speichert nichts dauerhaft.
+
+## Anwesenheit und Teilnehmerlisten (Leiter)
+- Mit Netlify-Identity-Rolle `admin` unter **Teilnehmer → Termin wählen** Anmeldungen ansehen.
+- Checkbox **Anwesend** pro angemeldetem Kind; Status wird direkt im separaten JOKER-Supabase-Projekt als `registrations.checked_in_at` gespeichert. Die Anwesenheit kann wieder zurückgesetzt werden.
+- **Teilnehmerliste als PDF** exportieren: Namen, Alter, Eltern-Kontakt, Fotoeinwilligung und Anwesenheitsstatus. Export nur nach Leiter-Login und nur aus dem geschützten Leiterbereich; die Datei wird lokal auf dem Gerät erstellt.
+- Solche PDFs sind personenbezogene Daten von Minderjährigen: nicht öffentlich hochladen/weitergeben, sicher verwahren und nach dem Anlass gemäss vereinbartem Löschkonzept löschen.
+- Datenbankmigration `supabase/attendance.sql` ist bereits im eigenständigen JOKER-Projekt eingespielt.
+
+## Suchmaschinen (SEO)
+- Öffentliche Seite hat einen suchmaschinenfreundlichen Titel, Description, Robots- und Open-Graph-/Twitter-Metadaten.
+- `public/robots.txt` erlaubt das Indexieren der Startseite, aber nicht die API-Pfade. **Private Kinder-/Elterndaten werden unabhängig davon ausschliesslich nach Login ausgegeben**.
+- Eine exakte Canonical-URL und Sitemap sollten erst nach Festlegung der endgültigen Netlify-Domain ergänzt werden. Indexierung kann nicht garantiert werden; für bessere Auffindbarkeit Website im Google Search Console anmelden und von der Kirchgemeindeseite verlinken.
