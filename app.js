@@ -65,7 +65,99 @@ function bookedChildNames(eventId){return S.children.filter(c=>childRegistered(e
 function bookingActions(e){return `<div class="booking-actions"><button type="button" class="btn btn-dark" data-action="calendar-export" data-id="${esc(e.id)}">Zum Google Kalender ↗</button><button type="button" class="btn btn-soft" data-action="pdf-export" data-id="${esc(e.id)}">Termininfos als PDF ↓</button></div>`;}
 function eventCard(e, isLeader=false){const regs=registrationsFor(e.id), mine=regs.filter(r=>S.children.some(c=>c.id===r.child_id)), past=e.event_date<nowISO, canRegister=signupAllowed(e);return `<article class="event-row">${dateShort(e)}<div class="event-info"><h3>${esc(e.title)}</h3><div class="event-meta"><span>◷ ${eventSummary(e)}</span></div><p style="margin-top:12px">${esc(e.description||'Weitere Infos folgen.')}</p>${whatToBring(e)}<div class="registration-children">${isLeader?`<span class="pill">${regs.length} angemeldete Kinder</span>`:mine.map(r=>`<span class="pill">✓ ${esc(childForRegistration(r).name)}</span>`).join('')}${!canRegister?'<span class="pill closed">Anmeldung geschlossen</span>':''}${e.is_published===false?'<span class="pill closed">Entwurf – nicht öffentlich</span>':''}${past?'<span class="pill closed">Vergangener Termin</span>':''}</div><small class="tiny">Anmeldeschluss: ${fmtDate(closingDate(e),{day:'numeric',month:'long',year:'numeric'})}</small><div class="event-actions">${isLeader?`<button class="btn btn-soft btn-small" data-action="view-roster" data-id="${esc(e.id)}">Teilnehmer ansehen</button><button class="btn btn-ghost btn-small" data-action="edit-event" data-id="${esc(e.id)}">Bearbeiten</button><button class="btn btn-danger btn-small" data-action="delete-event" data-id="${esc(e.id)}">Löschen</button>`:`<button class="btn ${past||!e.registration_open?'btn-ghost':'btn-dark'} btn-small" data-action="register" data-id="${esc(e.id)}" ${past?'disabled':''}>${past?'Termin vorbei':!canRegister?'Anmeldung ansehen':'Kinder anmelden / ändern'} ↗</button>`}${!isLeader&&mine.length?bookingActions(e):''}</div></div></article>`;}
 function eventsPanel(){const filtered=S.selectedDate?S.events.filter(e=>e.event_date===S.selectedDate):nextEvents();return `<div class="panel"><div class="panel-head"><div><h3>${S.selectedDate?'Termine am '+fmtDate(S.selectedDate):'Bevorstehende JOKER-Nachmittage'}</h3><p class="sub">${canLead()?'Erstelle Termine und bearbeite die Beschreibung direkt hier.':'Für jeden Termin entscheidest du, welche deiner Kinder teilnehmen.'}</p></div><div style="display:flex;gap:9px;flex-wrap:wrap">${S.selectedDate?`<button class="btn btn-ghost btn-small" data-action="clear-date">Alle nächsten Termine</button>`:''}${canLead()?`<button class="btn btn-dark btn-small" data-action="add-event">+ Neuer Termin</button>`:''}</div></div>${filtered.length?`<div class="event-list">${[...filtered].sort((a,b)=>a.event_date.localeCompare(b.event_date)).map(e=>eventCard(e,canLead())).join('')}</div>`:`<div class="empty"><span>📅</span><strong>Hier ist noch nichts eingetragen.</strong><p>${canLead()?'Lege deinen ersten JOKER-Termin an.':'Schaue später wieder vorbei – neue Termine erscheinen hier automatisch.'}</p></div>`}</div>`;}
-function rosterPanel(){const all=nextEvents();const selected=S.events.find(e=>e.id===S.rosterEventId)||all[0]||S.events[0];const regs=selected?registrationsFor(selected.id):[];return `<div class="panel"><div class="panel-head"><div><h3>Teilnehmerlisten</h3><p class="sub">Hier findest du die Anmeldungen und Kontaktangaben für die JOKER-Termine.</p></div><button class="btn btn-dark btn-small" data-action="add-event">+ Termin erstellen</button></div>${S.events.length?`<div class="field" style="max-width:500px;margin-bottom:22px"><label for="roster-event">Termin wählen</label><select id="roster-event" data-change="roster">${[...S.events].sort((a,b)=>a.event_date.localeCompare(b.event_date)).map(e=>`<option value="${esc(e.id)}" ${selected?.id===e.id?'selected':''}>${esc(fmtDate(e.event_date,{day:'2-digit',month:'2-digit',year:'numeric'}))} – ${esc(e.title)}</option>`).join('')}</select></div><p class="sub"><strong>${regs.length} Anmeldungen</strong> für ${selected?esc(selected.title):''}</p>${regs.length?`<div class="table-scroll"><table class="roster-table"><thead><tr><th>Kind</th><th>Alter</th><th>Fotoerlaubnis</th><th>Elternteil</th><th>Telefon</th><th>Weitere Kontaktperson</th><th>E-Mail</th></tr></thead><tbody>${regs.map(r=>{const c=childForRegistration(r),p=c.parent||{};return `<tr><td><strong>${esc(c.name)}</strong></td><td>${esc(c.age)}</td><td><span class="consent-pill ${c.photo_consent===true?'yes':'no'}">${c.photo_consent===true?'Ja':'Nein / nicht bestätigt'}</span></td><td>${esc(p.full_name||'–')}</td><td>${p.phone?`<a href="tel:${esc(String(p.phone).replace(/[^0-9+]/g,''))}">${esc(p.phone)}</a>`:'–'}</td><td>${esc(p.alternate_contact_name||'–')} ${p.alternate_contact_phone?`(${esc(p.alternate_contact_phone)})`:''}</td><td>${p.email?`<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>`:'–'}</td></tr>`}).join('')}</tbody></table></div>`:`<div class="empty"><span>👋</span><strong>Noch keine Anmeldungen.</strong><p>Sobald Eltern Kinder anmelden, erscheinen sie hier.</p></div>`}`:`<div class="empty"><span>📅</span><strong>Erstelle zunächst einen Termin.</strong></div>`}</div>`;}
+
+async function downloadRosterPdf(e, regs){
+  if(!canLead()||!S.user)throw new Error('Nur Leiter dürfen Teilnehmerlisten exportieren.');
+  const {PDFDocument,StandardFonts,rgb}=await import('pdf-lib');
+  const doc=await PDFDocument.create();
+  doc.setTitle('JOKER Kemmental · Teilnehmerliste '+e.event_date);
+  doc.setAuthor('JOKER Kemmental');
+  const normal=await doc.embedFont(StandardFonts.Helvetica);
+  const bold=await doc.embedFont(StandardFonts.HelveticaBold);
+  const W=595.28,H=841.89, left=43, usable=W-86;
+  const forest=rgb(.07,.23,.19),muted=rgb(.34,.43,.40),pale=rgb(.92,.96,.93),line=rgb(.81,.87,.83),gold=rgb(.94,.72,.35);
+  const sanitize=v=>String(v??'').replace(/[–—−]/g,'-').replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[^\x20-\x7e\xa0-\xff]/g,'');
+  let page,y,pageNum=0;
+  function txt(t,x,yy,size=10,font=normal,color=forest){page.drawText(sanitize(t),{x,y:yy,size,font,color});}
+  function startPage(){
+    page=doc.addPage([W,H]);pageNum++;
+    page.drawRectangle({x:0,y:H-126,width:W,height:126,color:forest});
+    page.drawRectangle({x:left,y:H-36,width:43,height:5,color:gold});
+    txt('JOKER  /  KEMMENTAL',left,H-57,11,bold,gold);
+    txt('Teilnehmer- & Anwesenheitsliste',left,H-90,21,bold,rgb(1,1,1));
+    txt(e.title+'  ·  '+fmtDate(e.event_date,{day:'numeric',month:'long',year:'numeric'}),left,H-112,9,normal,rgb(1,1,1));
+    y=H-154;
+    txt('Zeit: '+fmtTime(e.start_time)+' - '+fmtTime(e.end_time||'17:00')+' Uhr',left,y,10,bold);
+    y-=17;txt('Treffpunkt: '+(e.location||'JuHu Hugelshofen'),left,y,10);
+    y-=20;
+    page.drawLine({start:{x:left,y},end:{x:left+usable,y},thickness:.7,color:line});
+    y-=20;
+  }
+  function paragraph(textValue,x,maxWidth,fontSize=9,maxLines=3){
+    const words=sanitize(textValue||'-').split(/\s+/),lines=[];let current='';
+    for(const word of words){
+      const test=current?current+' '+word:word;
+      if(normal.widthOfTextAtSize(test,fontSize)>maxWidth&&current){lines.push(current);current=word;}else current=test;
+    }
+    if(current)lines.push(current);
+    return lines.slice(0,maxLines).map((t,i)=>{txt(t,x,y-i*12,fontSize);return t;});
+  }
+  startPage();
+  txt(regs.length+' Anmeldungen  ·  '+regs.filter(r=>r.checked_in_at).length+' anwesend',left,y,11,bold);
+  y-=29;
+  const sorted=[...regs].sort((a,b)=>String(a.child?.name||'').localeCompare(String(b.child?.name||''),'de'));
+  for(let i=0;i<sorted.length;i++){
+    const r=sorted[i],c=r.child||{},p=c.parent||{};
+    if(y<142)startPage();
+    const rowHeight=81;
+    if(i%2===0)page.drawRectangle({x:left-8,y:y-rowHeight+25,width:usable+16,height:rowHeight+2,color:pale});
+    txt((i+1)+'.  '+(c.name||'Unbekanntes Kind')+'  ('+(c.age??'?')+' J.)',left,y,12,bold);y-=16;
+    const person=p.full_name||c.contact_name||'Kontakt fehlt';
+    const phone=p.phone||c.contact_phone||'-';
+    txt('Eltern: '+person,left+12,y,9,normal,muted);y-=13;
+    txt('Telefon: '+phone,left+12,y,9,normal,muted);y-=13;
+    const consent=c.photo_consent===true?'JA':'NEIN / nicht bestätigt';
+    txt('Fotoeinwilligung: '+consent,left+12,y,9,bold,c.photo_consent===true?forest:rgb(.6,.22,.15));
+    y-=15;
+    txt('Anwesend: '+(r.checked_in_at?'JA':'NEIN')+'    [  ] Kontrolle vor Ort',left+12,y,9,normal,muted);
+    y-=29;
+  }
+  if(y<100)startPage();
+  y-=10;
+  txt('Vertraulich · Nur für das JOKER-Leitungsteam · Nicht öffentlich weitergeben',left,y,8,normal,muted);
+  for(const [i,p] of doc.getPages().entries()){p.drawText('Seite '+(i+1)+' / '+doc.getPageCount(),{x:W-96,y:35,font:normal,size:8,color:muted});}
+  const bytes=await doc.save();
+  const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+  const a=document.createElement('a');a.href=url;a.download='JOKER-Teilnehmerliste-'+e.event_date+'.pdf';document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
+function rosterPanel(){
+  const all=nextEvents();
+  const selected=S.events.find(e=>e.id===S.rosterEventId)||all[0]||S.events[0];
+  const regs=selected?registrationsFor(selected.id):[];
+  const present=regs.filter(r=>Boolean(r.checked_in_at)).length;
+  return '<div class="panel"><div class="panel-head"><div><h3>Teilnehmerlisten & Anwesenheit</h3>'+
+    '<p class="sub">Hake die anwesenden Kinder ab. Änderungen werden gespeichert. Die Liste lässt sich als PDF herunterladen.</p></div>'+
+    '<button class="btn btn-dark btn-small" data-action="add-event">+ Termin erstellen</button></div>'+
+    (S.events.length?'<div class="field" style="max-width:500px;margin-bottom:18px"><label for="roster-event">Termin wählen</label>'+
+    '<select id="roster-event" data-change="roster">'+[...S.events].sort((a,b)=>a.event_date.localeCompare(b.event_date)).map(e=>
+      '<option value="'+esc(e.id)+'" '+(selected?.id===e.id?'selected':'')+'>'+esc(fmtDate(e.event_date,{day:'2-digit',month:'2-digit',year:'numeric'}))+' – '+esc(e.title)+'</option>').join('')+'</select></div>'+
+    '<div class="attendance-toolbar"><div><strong>'+regs.length+' angemeldet · '+present+' anwesend</strong>'+
+    '<p class="tiny">'+(selected?esc(selected.title):'')+'</p></div>'+
+    '<button class="btn btn-dark btn-small" data-action="roster-pdf" data-id="'+esc(selected.id)+'">↓ Teilnehmerliste als PDF</button></div>'+
+    (regs.length?'<div class="table-scroll"><table class="roster-table attendance-table"><thead><tr>'+
+      '<th>Anwesend</th><th>Kind</th><th>Alter</th><th>Fotoerlaubnis</th><th>Elternteil</th><th>Telefon</th><th>Weitere Kontaktperson</th><th>E-Mail</th></tr></thead><tbody>'+
+      regs.map(r=>{const c=childForRegistration(r),p=c.parent||{};return '<tr>'+
+      '<td><label class="attendance-check"><input type="checkbox" data-change="attendance" data-id="'+esc(r.id)+'" data-event-id="'+esc(selected.id)+'" '+(r.checked_in_at?'checked':'')+' aria-label="'+esc(c.name)+' anwesend">'+
+      '<span>'+(r.checked_in_at?'Da':'Offen')+'</span></label></td>'+
+      '<td><strong>'+esc(c.name)+'</strong></td><td>'+esc(c.age)+'</td>'+
+      '<td><span class="consent-pill '+(c.photo_consent===true?'yes':'no')+'">'+(c.photo_consent===true?'Ja':'Nein / nicht bestätigt')+'</span></td>'+
+      '<td>'+esc(p.full_name||'–')+'</td><td>'+(p.phone?'<a href="tel:'+esc(String(p.phone).replace(/[^0-9+]/g,''))+'">'+esc(p.phone)+'</a>':'–')+'</td>'+
+      '<td>'+esc(p.alternate_contact_name||'–')+' '+(p.alternate_contact_phone?'('+esc(p.alternate_contact_phone)+')':'')+'</td>'+
+      '<td>'+(p.email?'<a href="mailto:'+esc(p.email)+'">'+esc(p.email)+'</a>':'–')+'</td></tr>';}).join('')+
+      '</tbody></table></div>':'<div class="empty"><span>👋</span><strong>Noch keine Anmeldungen.</strong><p>Sobald Eltern Kinder anmelden, erscheinen sie hier.</p></div>'):
+      '<div class="empty"><span>📅</span><strong>Erstelle zunächst einen Termin.</strong></div>')+'</div>';
+}
 function manualChildrenPanel(){return `<div class="panel"><div class="panel-head"><div><h3>Kinder direkt erfassen</h3><p class="sub">Für telefonische oder persönliche Anmeldungen ohne Elternkonto. Die angegebenen Kontaktpersonen sind nur für die Leitung sichtbar.</p></div><button class="btn btn-dark btn-small" data-action="add-manual-child">+ Kind erfassen</button></div>${S.manualChildren.length?S.manualChildren.map(c=>`<div class="child-row"><span class="child-avatar">${esc(c.name.slice(0,1).toUpperCase())}</span><div class="grow"><strong>${esc(c.name)}</strong><small>${esc(c.age)} Jahre · ${esc(c.contact_name)} · ${esc(c.contact_phone)}${c.contact_email?' · '+esc(c.contact_email):''} · Fotoerlaubnis: ${c.photo_consent===true?'Ja':'Nein'}</small><small>${S.registrations.filter(r=>r.child_id===c.id).map(r=>S.events.find(e=>e.id===r.event_id)).filter(Boolean).map(e=>esc(e.title)).join(' · ')||'Noch für keinen Termin angemeldet'}</small></div><button class="btn btn-dark btn-small" data-action="manual-register" data-id="${esc(c.id)}">Termine</button><button class="btn btn-soft btn-small" data-action="edit-manual-child" data-id="${esc(c.id)}">Bearbeiten</button><button class="btn btn-danger btn-small" data-action="delete-manual-child" data-id="${esc(c.id)}">×</button></div>`).join(''):`<div class="empty"><span>🌱</span><strong>Noch keine manuell erfassten Kinder.</strong><p>Lege hier Kinder an, die ohne Elternkonto angemeldet werden.</p></div>`}</div>`;}
 function photoUrl(p){if(p.url)return p.url;return 'assets/gallery-fallback.svg';}
 function leaderGallery(){return `<div class="panel"><h3>JOKER-Galerie verwalten</h3><p class="sub">Hier kannst du eigene Fotos hochladen und ihre Bildunterschrift festlegen. Sie erscheinen öffentlich auf der Startseite.</p><div class="notice">Bitte lade nur Fotos von erkennbaren Personen hoch, wenn die erforderlichen Einwilligungen vorliegen. Eine Fotoeinwilligung im Kinderprofil ersetzt nicht die Prüfung aller abgebildeten Personen.</div><form id="form-photo"><div class="form-grid"><div class="field"><label for="photo">Foto auswählen (JPG, PNG, WebP – max. 2.5 MB)</label><input id="photo" type="file" name="photo" accept="image/jpeg,image/png,image/webp" required></div><div class="field"><label for="caption">Bildunterschrift</label><input id="caption" name="caption" required maxlength="150" placeholder="z. B. Unser Natur-Nachmittag"></div></div><label class="check-field" style="margin-top:17px"><input type="checkbox" name="consent" required> Ich bestätige, dass wir dieses Bild öffentlich zeigen dürfen.</label><div class="form-actions"><button class="btn btn-dark" type="submit">Bild zur Galerie hinzufügen</button></div></form></div><div class="panel"><h3>Bereits veröffentlichte Fotos</h3>${S.gallery.length?`<div class="leader-gallery-preview">${S.gallery.map(p=>`<div><img src="${safeUrl(photoUrl(p))}" alt="${esc(p.caption||'Galeriefoto')}" onerror="this.src='assets/gallery-fallback.svg'"><p class="tiny">${esc(p.caption)}</p><button class="btn btn-danger btn-small" data-action="delete-photo" data-id="${esc(p.id)}">Entfernen</button></div>`).join('')}</div>`:`<div class="empty"><span>📷</span><strong>Noch keine JOKER-Fotos hochgeladen.</strong><p>Die Galerie ist noch leer. Du kannst hier später die ersten Bilder hochladen.</p></div>`}</div>`;}
@@ -122,7 +214,7 @@ async function confirmDelete(table,id){
     toast('Eintrag gelöscht.');
   }catch(e){toast(e.message||'Löschen fehlgeschlagen.',true);}
 }
-async function handleAction(btn){const act=btn.dataset.action,id=btn.dataset.id;if(act==='mobile'){S.mobile=!S.mobile;render();return;}if(act==='home'){const anchor=btn.dataset.scroll;S.screen='home';S.mobile=false;render();if(anchor)requestAnimationFrame(()=>document.getElementById(anchor)?.scrollIntoView({behavior:'smooth'}));return;}if(act==='portal'){navigate('portal');return;}if(act==='tab'){S.tab=btn.dataset.tab;S.selectedDate='';render();return;}if(act==='toggle-auth'){S.authMode=S.authMode==='signup'?'login':'signup';render();return;}if(act==='demo-role'){demoRole(btn.dataset.role);return;}if(act==='demo-reset'){S.user=null;S.profile=null;navigate('portal');return;}if(act==='month-prev'||act==='month-next'||act==='month-today'){S.month=act==='month-today'?monthFrom(nowISO):new Date(S.month.getFullYear(),S.month.getMonth()+(act==='month-next'?1:-1),1);S.selectedDate='';render();return;}if(act==='select-date'){S.selectedDate=btn.dataset.date;render();return;}if(act==='clear-date'){S.selectedDate='';render();return;}if(act==='add-manual-child'){openModal('manual-child');return;}if(act==='edit-manual-child'){openModal('manual-child',id);return;}if(act==='manual-register'){openModal('manual-register',id);return;}if(act==='delete-manual-child'){await confirmDelete('manual_children',id);return;}if(act==='add-child'){openModal('child');return;}if(act==='edit-child'){openModal('edit-child',id);return;}if(act==='add-event'){openModal('event');return;}if(act==='edit-event'){openModal('event',id);return;}if(act==='register'){openModal('register',id);return;}if(act==='calendar-export'){const e=S.events.find(x=>x.id===id);if(!e||!bookedChildNames(id).length){toast('Bitte zuerst ein Kind anmelden.',true);return;}window.open(googleCalendarUrl(e),'_blank','noopener,noreferrer');return;}if(act==='pdf-export'){const e=S.events.find(x=>x.id===id);if(!e)return;try{await downloadBookingPdf(e,bookedChildNames(id));}catch(err){toast('PDF konnte nicht erstellt werden: '+err.message,true);}return;}if(act==='view-roster'){S.rosterEventId=id;S.tab='teilnehmer';render();return;}if(act==='privacy'){openModal('privacy');return;}if(act==='close-modal'||act==='close-backdrop'){S.modal=null;render();return;}if(act==='delete-child'){await confirmDelete('children',id);return;}if(act==='delete-event'){await confirmDelete('events',id);return;}if(act==='delete-photo'){await confirmDelete('gallery_photos',id);return;}if(act==='logout'){try{if(!S.demo)await identityLogout();S.user=null;S.profile=null;S.tab='termine';await fetchDataIfLive();navigate('home');}catch(e){toast(e.message,true);}return;}if(act==='reset-password'){const email=prompt('Für welche E-Mail-Adresse möchtest du dein Passwort zurücksetzen?');if(!email)return;try{await requestPasswordRecovery(email);toast('Falls ein Konto existiert, erhältst du eine E-Mail zum Zurücksetzen.');}catch(e){toast(e.message||'Zurücksetzen fehlgeschlagen.',true);}return;}}
+async function handleAction(btn){const act=btn.dataset.action,id=btn.dataset.id;if(act==='mobile'){S.mobile=!S.mobile;render();return;}if(act==='home'){const anchor=btn.dataset.scroll;S.screen='home';S.mobile=false;render();if(anchor)requestAnimationFrame(()=>document.getElementById(anchor)?.scrollIntoView({behavior:'smooth'}));return;}if(act==='portal'){navigate('portal');return;}if(act==='tab'){S.tab=btn.dataset.tab;S.selectedDate='';render();return;}if(act==='toggle-auth'){S.authMode=S.authMode==='signup'?'login':'signup';render();return;}if(act==='demo-role'){demoRole(btn.dataset.role);return;}if(act==='demo-reset'){S.user=null;S.profile=null;navigate('portal');return;}if(act==='month-prev'||act==='month-next'||act==='month-today'){S.month=act==='month-today'?monthFrom(nowISO):new Date(S.month.getFullYear(),S.month.getMonth()+(act==='month-next'?1:-1),1);S.selectedDate='';render();return;}if(act==='select-date'){S.selectedDate=btn.dataset.date;render();return;}if(act==='clear-date'){S.selectedDate='';render();return;}if(act==='add-manual-child'){openModal('manual-child');return;}if(act==='edit-manual-child'){openModal('manual-child',id);return;}if(act==='manual-register'){openModal('manual-register',id);return;}if(act==='delete-manual-child'){await confirmDelete('manual_children',id);return;}if(act==='add-child'){openModal('child');return;}if(act==='edit-child'){openModal('edit-child',id);return;}if(act==='add-event'){openModal('event');return;}if(act==='edit-event'){openModal('event',id);return;}if(act==='register'){openModal('register',id);return;}if(act==='calendar-export'){const e=S.events.find(x=>x.id===id);if(!e||!bookedChildNames(id).length){toast('Bitte zuerst ein Kind anmelden.',true);return;}window.open(googleCalendarUrl(e),'_blank','noopener,noreferrer');return;}if(act==='pdf-export'){const e=S.events.find(x=>x.id===id);if(!e)return;try{await downloadBookingPdf(e,bookedChildNames(id));}catch(err){toast('PDF konnte nicht erstellt werden: '+err.message,true);}return;}if(act==='roster-pdf'){if(!canLead()){toast('Nur Leiter dürfen Teilnehmerlisten herunterladen.',true);return;}const event=S.events.find(e=>e.id===id);if(!event)return;try{await downloadRosterPdf(event,registrationsFor(id));}catch(err){toast('Teilnehmerliste konnte nicht erstellt werden: '+err.message,true);}return;}if(act==='view-roster'){S.rosterEventId=id;S.tab='teilnehmer';render();return;}if(act==='privacy'){openModal('privacy');return;}if(act==='close-modal'||act==='close-backdrop'){S.modal=null;render();return;}if(act==='delete-child'){await confirmDelete('children',id);return;}if(act==='delete-event'){await confirmDelete('events',id);return;}if(act==='delete-photo'){await confirmDelete('gallery_photos',id);return;}if(act==='logout'){try{if(!S.demo)await identityLogout();S.user=null;S.profile=null;S.tab='termine';await fetchDataIfLive();navigate('home');}catch(e){toast(e.message,true);}return;}if(act==='reset-password'){const email=prompt('Für welche E-Mail-Adresse möchtest du dein Passwort zurücksetzen?');if(!email)return;try{await requestPasswordRecovery(email);toast('Falls ein Konto existiert, erhältst du eine E-Mail zum Zurücksetzen.');}catch(e){toast(e.message||'Zurücksetzen fehlgeschlagen.',true);}return;}}
 async function fetchDataIfLive(){if(!S.demo)await fetchData();}
 async function handleForm(form){
   const f=new FormData(form),type=form.id;
@@ -218,7 +310,21 @@ async function handleForm(form){
 }
 app.addEventListener('click',e=>{const target=e.target.closest('[data-action]');if(!target)return;if(target.dataset.action==='close-backdrop'&&e.target!==target)return;if(target.tagName==='A')e.preventDefault();if(target.disabled)return;handleAction(target);});
 app.addEventListener('submit',e=>{e.preventDefault();handleForm(e.target);});
-app.addEventListener('change',e=>{if(e.target.dataset.change==='roster'){S.rosterEventId=e.target.value;render();}});
+app.addEventListener('change',async e=>{
+  const target=e.target;
+  if(target.dataset.change==='roster'){S.rosterEventId=target.value;render();return;}
+  if(target.dataset.change!=='attendance')return;
+  if(!canLead()){target.checked=!target.checked;toast('Nur Leiter dürfen Anwesenheiten bearbeiten.',true);return;}
+  const registrationId=target.dataset.id,eventId=target.dataset.eventId,present=target.checked;
+  target.disabled=true;
+  try{
+    if(S.demo){const reg=S.registrations.find(r=>r.id===registrationId&&r.event_id===eventId);if(!reg)throw Error('Anmeldung nicht gefunden.');reg.checked_in_at=present?new Date().toISOString():null;}
+    else await api({action:'attendance.set',registration_id:registrationId,event_id:eventId,present});
+    if(!S.demo)await fetchData();
+    else render();
+    toast(present?'Anwesenheit gespeichert.':'Anwesenheit zurückgesetzt.');
+  }catch(err){target.checked=!present;target.disabled=false;toast('Anwesenheit konnte nicht gespeichert werden: '+err.message,true);}
+});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.modal){S.modal=null;render();}});
 async function init(){
   render();
