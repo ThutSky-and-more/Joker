@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api
+Disallow: /.netlify/
+
+# Öffentliche JOKER-Startseite darf indexiert werden.
+# Eltern- und Leiterdaten werden ausschliesslich nach Login ausgeliefert.
