@@ -32,7 +32,14 @@ class ApiError extends Error { constructor(message, status=400) { super(message)
 const assert = (ok, message, status=400) => { if (!ok) throw new ApiError(message,status); };
 const getClient = () => {
   const url=process.env.SUPABASE_URL, key=process.env.SUPABASE_SERVICE_ROLE_KEY;
-  assert(url && key, 'Die JOKER-Datenbank ist noch nicht eingerichtet.',503);
+  if (!url || !key) {
+    // Nur Variablennamen protokollieren, niemals ihre Werte oder Zugangsschlüssel.
+    console.error('JOKER Netlify Functions: fehlende Environment Variables', {
+      SUPABASE_URL: !url,
+      SUPABASE_SERVICE_ROLE_KEY: !key
+    });
+    throw new ApiError('Die Datenbankverbindung ist vorübergehend nicht verfügbar.',503);
+  }
   return createClient(url,key, { auth: { persistSession: false, autoRefreshToken: false }});
 };
 const query = async (result) => {
