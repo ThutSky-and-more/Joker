@@ -83,6 +83,8 @@ const setupDb=()=>{
   select(){return this;}
   eq(k,v){this.filters.push(r=>r[k]===v);return this;}
   in(k,v){this.filters.push(r=>v.includes(r[k]));return this;}
+  gte(k,v){this.filters.push(r=>r[k]>=v);return this;}
+  ilike(k,v){this.filters.push(r=>String(r[k]).toLowerCase()===String(v).toLowerCase());return this;}
   order(){return this;}
   limit(){return this;}
   insert(payload){this.op='insert';this.payload=payload;return this;}
@@ -140,4 +142,37 @@ test('Eltern können nicht das Kind einer anderen Familie anmelden',async()=>{
  setupDb();globalThis.__testUser={id:'p1',email:'p1@example.ch',roles:[]};
  const result=await handler(req({action:'registration.set',event_id:'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaaa',child_ids:['22222222-2222-4222-8222-222222222222']}));
  assert.equal(result.status,403);
+});
+
+test('Eltern dürfen keine Kinder für andere Eltern erfassen',async()=>{
+ setupDb();globalThis.__testUser={id:'p1',email:'p1@example.ch',roles:[]};
+ const result=await handler(req({action:'leader.child.add',parent_email:'p2@example.ch',name:'Neues Kind',age:8}));
+ assert.equal(result.status,403);
+});
+
+test('Leitung kann Kind einem bestehenden Elternkonto zuordnen',async()=>{
+ const tables=setupDb();globalThis.__testUser={id:'admin1',email:'admin@example.ch',roles:['admin']};
+ const result=await handler(req({action:'leader.child.add',parent_email:'p2@example.ch',name:'Neues Kind',age:8,photo_consent:false}));
+ assert.equal(result.status,200);
+ const added=tables.children.find(c=>c.name==='Neues Kind');
+ assert.equal(added.parent_id,'p2');
+ assert.equal(added.photo_consent,false);
+});
+
+test('Leitung darf kein neues Kind einem unbekannten Elternkonto zuordnen',async()=>{
+ const tables=setupDb();globalThis.__testUser={id:'admin1',email:'admin@example.ch',roles:['admin']};
+ const result=await handler(req({action:'leader.child.add',parent_email:'fremd@example.ch',name:'Neues Kind',age:8}));
+ assert.equal(result.status,404);
+ assert.equal(tables.children.length,3);
+});
+
+test('Eltern sehen vergangene Termine nicht; Admins behalten die Historie',async()=>{
+ const tables=setupDb();
+ tables.events.push({id:'aaaaaaa3-aaaa-4aaa-8aaa-aaaaaaaaaaaa',title:'Vergangener Termin',event_date:'2020-05-10',is_published:true,registration_open:false});
+ globalThis.__testUser={id:'p1',email:'p1@example.ch',roles:[]};
+ const parent=await handler(new Request('https://joker-test.netlify.app/api?view=dashboard'));
+ assert.equal(parent.status,200);assert.equal((await parent.json()).events.some(e=>e.title==='Vergangener Termin'),false);
+ globalThis.__testUser={id:'admin1',email:'admin@example.ch',roles:['admin']};
+ const leader=await handler(new Request('https://joker-test.netlify.app/api?view=dashboard'));
+ assert.equal(leader.status,200);assert.equal((await leader.json()).events.some(e=>e.title==='Vergangener Termin'),true);
 });
