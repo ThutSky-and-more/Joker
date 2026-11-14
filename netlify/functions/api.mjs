@@ -99,7 +99,7 @@ const dashboard=async(db,u)=>{
   let registrations=[];
   if(isAdmin){
     // Leiter sehen ausschliesslich die Daten von Kindern mit einer tatsächlichen Termin-Anmeldung.
-    const regs=await query(db.from('registrations').select('id,event_id,child_id,created_at').order('created_at',{ascending:true}));
+    const regs=await query(db.from('registrations').select('id,event_id,child_id,created_at,checked_in_at').order('created_at',{ascending:true}));
     const childIds=[...new Set(regs.map(r=>r.child_id))];
     const relatedChildren=childIds.length?await query(db.from('children').select('id,name,age,parent_id,contact_name,contact_phone,contact_email,photo_consent').in('id',childIds)):[];
     const parents=[...new Set(relatedChildren.map(c=>c.parent_id).filter(Boolean))];
@@ -162,6 +162,18 @@ const action=async(db,u,body)=>{
   }
   // Leiteraktionen werden serverseitig anhand der Identity-Rolle autorisiert.
   assert(isAdmin,'Für diese Funktion brauchst du den Netlify-Identity-Tag admin.',403);
+  if(operation==='attendance.set'){
+    // Die Benutzerrolle wird oben aus Netlify Identity geprüft; nur Leiter dürfen Anwesenheit bearbeiten.
+    const registrationId=uid(body.registration_id);
+    const eventId=uid(body.event_id);
+    assert(typeof body.present==='boolean','Ungültiger Anwesenheitsstatus.');
+    // Beide IDs prüfen, damit nie eine fremde Anmeldung verändert wird.
+    await query(db.from('registrations').select('id').eq('id',registrationId).eq('event_id',eventId).single());
+    const checkedInAt=body.present?new Date().toISOString():null;
+    await query(db.from('registrations').update({checked_in_at:checkedInAt})
+      .eq('id',registrationId).eq('event_id',eventId).select('id').single());
+    return {ok:true,checked_in_at:checkedInAt};
+  }
   if(operation==='leader.child.add'){
     const email=requireField(body.parent_email,'E-Mail der Eltern',3,254).toLowerCase();
     assert(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email),'Ungültige E-Mail-Adresse.');
