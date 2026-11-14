@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@netlify/identity": "^2.0.1",
-    "@supabase/supabase-js": "^2.49.4"
+    "@supabase/supabase-js": "^2.49.4",
+    "pdf-lib": "1.17.1"
   },
   "devDependencies": {
     "vite": "^7.1.0"
