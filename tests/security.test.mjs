@@ -164,3 +164,19 @@ test('Eltern können nicht das Kind einer anderen Familie anmelden',async()=>{
  const result=await handler(req({action:'registration.set',event_id:'aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaaa',child_ids:['22222222-2222-4222-8222-222222222222']}));
  assert.equal(result.status,403);
 });
+
+test('Leiter können Kleidung und Mitnehmen pro Termin speichern', async () => {
+  globalThis.__testUser={id:'admin1',email:'admin@example.ch',roles:['admin']};
+  let inserted=null;
+  globalThis.__testDb={from(name){assert.equal(name,'events');return {insert(data){inserted=data;return Promise.resolve({data:null,error:null});}};}};
+  const res=await handler(req({action:'event.save',title:'JOKER Waldtag',description:'Ein Waldnachmittag',bring_wear:'Wetterfeste Schuhe, Regenjacke und Trinkflasche',event_date:'2099-03-03',start_time:'14:00',end_time:'17:00',location:'JuHu',registration_open:true,is_published:true}));
+  assert.equal(res.status,200);
+  assert.equal(inserted.bring_wear,'Wetterfeste Schuhe, Regenjacke und Trinkflasche');
+});
+
+test('Überlange Mitbringliste wird abgewiesen', async () => {
+  globalThis.__testUser={id:'admin1',email:'admin@example.ch',roles:['admin']};
+  globalThis.__testDb={};
+  const res=await handler(req({action:'event.save',title:'JOKER Waldtag',description:'Waldnachmittag',bring_wear:'x'.repeat(2001),event_date:'2099-03-03',start_time:'14:00',location:'JuHu'}));
+  assert.equal(res.status,400);
+});
