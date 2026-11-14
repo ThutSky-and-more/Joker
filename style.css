@@ -17,3 +17,10 @@
 .photo-view{clear:both;display:flex;flex-direction:column;align-items:center;gap:12px}
 .photo-view img{width:auto;max-width:100%;max-height:76vh;height:auto;object-fit:contain;border-radius:12px}
 .photo-view p{margin:0;text-align:center;color:#365e55;font-weight:700}
+
+/* JOKER Termindetails, Fotoeinwilligung und Buchungsbestätigung */
+.kit-box{padding:14px 17px;border-radius:14px;background:#eef6ec;border:1px solid #d7e8d6;margin:14px 0 16px;color:#254d3d}.kit-box strong{display:block;margin-bottom:6px;font-size:.86rem}.kit-box p{margin:0!important;white-space:pre-wrap;color:#3b5d4a!important;font-size:.9rem!important}
+.consent-pill{display:inline-block;border-radius:99px;padding:5px 10px;font-size:.76rem;font-weight:800;white-space:nowrap}.consent-pill.yes{background:#e0f3e5;color:#22683f}.consent-pill.no{background:#fff0e8;color:#92552c}
+.booking-actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.booking-actions .btn{font-size:.84rem}
+.booking-success{text-align:center}.booking-success .kit-box{text-align:left}.booking-success h2{font-size:1.8rem}.booking-success p{color:#537166;line-height:1.6}.booking-success .booking-actions{justify-content:center}.booking-summary{background:#f2f7ef;border-radius:16px;padding:19px;margin:18px 0}.booking-summary strong,.booking-summary span{display:block}.booking-summary span{font-size:.9rem;color:#526f60;margin-top:6px}.success-mark{display:grid;place-items:center;margin:5px auto 18px;width:65px;height:65px;border-radius:50%;color:white;background:#2f865e;font-size:35px;font-weight:900}
+@media(max-width:480px){.booking-actions{flex-direction:column}.booking-actions .btn{width:100%;justify-content:center}}
